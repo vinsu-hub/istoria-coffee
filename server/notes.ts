@@ -2,6 +2,7 @@ import path from "path";
 import fs from "fs/promises";
 import { fileURLToPath } from "url";
 import { Redis } from "@upstash/redis";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 // Statically imported (bundled directly into the JS output) so seed data is
 // always available even when the serverless bundler doesn't preserve the
 // runtime file path server/notes.ts would otherwise compute from __dirname.
@@ -39,6 +40,10 @@ export function toPublicNote(note: Note): PublicNote {
   return rest;
 }
 
+function formatDisplayDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 function buildNote(message: string, deviceId: string): Note {
   const now = new Date();
   return {
@@ -46,7 +51,7 @@ function buildNote(message: string, deviceId: string): Note {
     message,
     deviceId,
     createdAt: now.toISOString(),
-    displayDate: now.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    displayDate: formatDisplayDate(now.toISOString()),
   };
 }
 
@@ -66,6 +71,84 @@ function validateInput(message: unknown, deviceId: unknown): { message: string; 
     return { error: "blocked_content" };
   }
   return { message: trimmed, deviceId };
+}
+
+// ---------------------------------------------------------------------------
+// Supabase-backed store (highest priority when configured — see
+// supabase/freedom_wall.sql for the table this expects)
+// ---------------------------------------------------------------------------
+
+const NOTES_TABLE = "freedom_wall_notes";
+
+function getSupabase(): SupabaseClient | null {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
+}
+
+async function listRecentNotesSupabase(supabase: SupabaseClient): Promise<PublicNote[]> {
+  const { data, error } = await supabase
+    .from(NOTES_TABLE)
+    .select("id, message, created_at")
+    .order("created_at", { ascending: false })
+    .limit(MAX_NOTES_RETURNED);
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    message: row.message,
+    createdAt: row.created_at,
+    displayDate: formatDisplayDate(row.created_at),
+  }));
+}
+
+async function createNoteSupabase(
+  supabase: SupabaseClient,
+  message: string,
+  deviceId: string
+): Promise<CreateNoteResult> {
+  const startOfToday = new Date();
+  startOfToday.setUTCHours(0, 0, 0, 0);
+
+  const { data: existing, error: checkError } = await supabase
+    .from(NOTES_TABLE)
+    .select("id")
+    .eq("device_id", deviceId)
+    .gte("created_at", startOfToday.toISOString())
+    .limit(1);
+
+  if (checkError) throw checkError;
+  if (existing && existing.length > 0) {
+    return { ok: false, status: 429, error: "limit_reached" };
+  }
+
+  const { data, error } = await supabase
+    .from(NOTES_TABLE)
+    .insert({ message, device_id: deviceId })
+    .select("id, message, created_at")
+    .single();
+
+  if (error) {
+    // The unique (device_id, day) index is a race-condition safety net —
+    // a violation here means another request from the same device beat
+    // this one to it in the tiny window since the check above.
+    if (error.code === "23505") {
+      return { ok: false, status: 429, error: "limit_reached" };
+    }
+    throw error;
+  }
+
+  return {
+    ok: true,
+    note: {
+      id: data.id,
+      message: data.message,
+      createdAt: data.created_at,
+      displayDate: formatDisplayDate(data.created_at),
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -158,10 +241,13 @@ async function createNoteFile(message: string, deviceId: string): Promise<Create
 }
 
 // ---------------------------------------------------------------------------
-// Public API — picks Redis when configured, else falls back to the JSON file
+// Public API — Supabase when configured, else Redis, else the JSON file
 // ---------------------------------------------------------------------------
 
 export async function listRecentNotes(): Promise<PublicNote[]> {
+  const supabase = getSupabase();
+  if (supabase) return listRecentNotesSupabase(supabase);
+
   const redis = getRedis();
   return redis ? listRecentNotesRedis(redis) : listRecentNotesFile();
 }
@@ -171,6 +257,9 @@ export async function createNote(rawMessage: unknown, rawDeviceId: unknown): Pro
   if ("error" in validated) {
     return { ok: false, status: 400, error: validated.error };
   }
+
+  const supabase = getSupabase();
+  if (supabase) return createNoteSupabase(supabase, validated.message, validated.deviceId);
 
   const redis = getRedis();
   return redis
