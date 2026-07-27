@@ -1,0 +1,40 @@
+{
+  "coffee": [
+    { "id": "americano", "name": "Americano", "hot": 69, "iced": 79 },
+    { "id": "cappuccino", "name": "Cappuccino", "hot": 79, "iced": 89 },
+    { "id": "flat-white", "name": "Flat White", "hot": 79, "iced": 89 }
+  ],
+  "specials": [
+    { "id": "baristas-choice", "name": "Barista's Choice", "price": 129 },
+    { "id": "caramel-macchiato", "name": "Caramel Macchiato", "price": 129 },
+    { "id": "cinnamon-agave", "name": "Cinnamon Agave", "price": 129 },
+    { "id": "matcha-espresso-fusion", "name": "Matcha Espresso Fusion", "price": 129 },
+    { "id": "salted-caramel", "name": "Salted Caramel", "price": 129 },
+    { "id": "strawberry-macchiato", "name": "Strawberry Macchiato", "price": 129 }
+  ],
+  "latte": [
+    { "id": "butterscotch", "name": "Butterscotch", "hot": 109, "iced": 119 },
+    { "id": "caramel", "name": "Caramel", "hot": 109, "iced": 119 },
+    { "id": "french-vanilla", "name": "French Vanilla", "hot": 109, "iced": 119 },
+    { "id": "hazelnut", "name": "Hazelnut", "hot": 109, "iced": 119 },
+    { "id": "macadamia", "name": "Macadamia", "hot": 109, "iced": 119 },
+    { "id": "mocha", "name": "Mocha", "hot": 109, "iced": 119 },
+    { "id": "spanish", "name": "Spanish", "hot": 109, "iced": 119 },
+    { "id": "sea-salt", "name": "Sea Salt", "hot": 109, "iced": 119 },
+    { "id": "vanilla", "name": "Vanilla", "hot": 109, "iced": 119 },
+    { "id": "white-chocolate", "name": "White Chocolate", "hot": 109, "iced": 119 }
+  ],
+  "nonCoffee": [
+    { "id": "choco", "name": "Choco", "price": 119 },
+    { "id": "choco-hazelnut", "name": "Choco Hazelnut", "price": 119 },
+    { "id": "matcha", "name": "Matcha", "price": 119 },
+    { "id": "choco-matcha", "name": "Choco Matcha", "price": 119 },
+    { "id": "strawberry-matcha", "name": "Strawberry Matcha", "price": 119 },
+    { "id": "strawberry-milk", "name": "Strawberry Milk", "price": 119 },
+    { "id": "creamy-butterscotch", "name": "Creamy Butterscotch", "price": 119 }
+  ],
+  "addOns": [
+    { "id": "espresso-shot", "name": "Espresso Shot", "price": 20 },
+    { "id": "sauce-syrup-drizzle", "name": "Sauce, Syrup, or Drizzle", "price": 25 }
+  ]
+}
