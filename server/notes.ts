@@ -96,7 +96,7 @@ async function listRecentNotesSupabase(supabase: SupabaseClient): Promise<Public
 
   if (error) throw error;
 
-  return (data ?? []).map((row) => ({
+  return (data ?? []).map((row: { id: string; message: string; created_at: string }) => ({
     id: row.id,
     message: row.message,
     createdAt: row.created_at,
