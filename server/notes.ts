@@ -137,7 +137,14 @@ async function createNoteFile(message: string, deviceId: string): Promise<Create
   }
 
   notes.push(note);
-  await writeNotesFile(notes);
+  try {
+    await writeNotesFile(notes);
+  } catch {
+    // Serverless filesystems (e.g. Vercel without Redis connected) are
+    // read-only outside /tmp — fail with a clear, catchable error instead
+    // of an unhandled crash.
+    return { ok: false, status: 503, error: "storage_unavailable" };
+  }
 
   return { ok: true, note: toPublicNote(note) };
 }

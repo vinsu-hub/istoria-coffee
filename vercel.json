@@ -2,6 +2,11 @@
   "framework": "vite",
   "buildCommand": "vite build",
   "outputDirectory": "dist/public",
+  "functions": {
+    "api/notes.ts": {
+      "includeFiles": "server/data/notes.json"
+    }
+  },
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
