@@ -13,11 +13,23 @@ create table if not exists public.freedom_wall_notes (
 create index if not exists freedom_wall_notes_created_at_idx
   on public.freedom_wall_notes (created_at desc);
 
+-- Postgres won't allow timestamptz::date directly in an index expression —
+-- that cast depends on the session's timezone setting, so it's only STABLE,
+-- not IMMUTABLE, which index expressions require. This wrapper pins the
+-- conversion to UTC explicitly, making it a true IMMUTABLE function.
+create or replace function public.utc_date(ts timestamptz)
+returns date
+language sql
+immutable
+as $$
+  select (ts at time zone 'utc')::date;
+$$;
+
 -- One note per device per calendar day (UTC) — a DB-level safety net
 -- alongside the application-level check, so a race between two
 -- concurrent requests from the same device can't both succeed.
 create unique index if not exists freedom_wall_notes_device_per_day_idx
-  on public.freedom_wall_notes (device_id, (created_at::date));
+  on public.freedom_wall_notes (device_id, public.utc_date(created_at));
 
 alter table public.freedom_wall_notes enable row level security;
 
@@ -57,4 +69,4 @@ insert into public.freedom_wall_notes (message, device_id, created_at) values
   ('Date spot namin ni jowa ❤️ laging masaya dito.', 'seed', '2026-07-14T10:00:00.000Z'),
   ('Staff are so kind! Will definitely come back.', 'seed', '2026-07-13T10:00:00.000Z'),
   ('Group study spot na namin to. Thank you Istoria!', 'seed', '2026-07-12T10:00:00.000Z')
-on conflict (device_id, (created_at::date)) do nothing;
+on conflict (device_id, (public.utc_date(created_at))) do nothing;
