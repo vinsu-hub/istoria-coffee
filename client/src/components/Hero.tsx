@@ -23,16 +23,17 @@ const SCROLL_SENSITIVITY = 1.02; // +2% sensitivity — reaches the last frame s
 const SCROLL_GUIDE_FRAME_CUTOFF = 10; // thin scroll-down guide shows only for the first N frames
 const MOTION_BLUR_PROGRESS_CUTOFF = 0.5; // motion blur only applied in the first half of the animation
 const MAX_BLUR_PX = 6;
-const BLUR_SETTLE_MS = 100; // how long after the last scroll tick before blur eases back to 0
+const EASE_FACTOR = 0.12; // how much of the remaining distance to the target frame is closed each animation tick (higher = snappier, lower = smoother/slower)
+const SNAP_EPSILON = 0.05; // once this close to the target frame, snap exactly instead of asymptotically crawling forever
 
 export default function Hero() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const imageCache = useRef<Map<number, HTMLImageElement>>(new Map());
-  const currentFrameRef = useRef(0);
-  const lastScrollTimeRef = useRef(0);
-  const blurSettleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentFrameRef = useRef(0); // last drawn (rounded) frame index
+  const displayFrameRef = useRef(0); // eased, fractional frame position — what's actually being animated toward the target
+  const rafIdRef = useRef<number | null>(null);
   const [firstFrameReady, setFirstFrameReady] = useState(false);
   const [showContent, setShowContent] = useState(false);
   const [showScrollGuide, setShowScrollGuide] = useState(true);
@@ -127,9 +128,14 @@ export default function Hero() {
     };
   }, [drawFrame]);
 
-  // Scroll handler — maps scroll to frame index
+  // Continuous easing loop — scroll position sets a *target* frame, and the
+  // displayed frame glides toward it a little each tick instead of jumping
+  // straight to it, so fast/jerky scrolling reads as a smooth, controlled
+  // scrub all the way through to the last frame.
   useEffect(() => {
-    const handleScroll = () => {
+    const tick = () => {
+      rafIdRef.current = requestAnimationFrame(tick);
+
       if (!sectionRef.current) return;
       const rect = sectionRef.current.getBoundingClientRect();
       const viewportHeight = window.innerHeight;
@@ -146,28 +152,23 @@ export default function Hero() {
       // +2% scroll sensitivity — completes the sequence slightly before
       // the nominal scroll distance, reducing perceived travel.
       const progress = Math.max(0, Math.min(1, (scrolled / scrollableDistance) * SCROLL_SENSITIVITY));
+      const targetFrame = progress * (TOTAL_FRAMES - 1);
 
-      const frameIndex = Math.floor(progress * (TOTAL_FRAMES - 1));
+      const current = displayFrameRef.current;
+      const remaining = targetFrame - current;
+      const next = Math.abs(remaining) < SNAP_EPSILON ? targetFrame : current + remaining * EASE_FACTOR;
+      displayFrameRef.current = next;
 
+      const frameIndex = Math.round(next);
       if (frameIndex !== currentFrameRef.current) {
-        const now = performance.now();
-        const framesDelta = Math.abs(frameIndex - currentFrameRef.current);
-        const timeDelta = Math.max(1, now - (lastScrollTimeRef.current || now));
-        const velocity = framesDelta / timeDelta; // frames per ms
-
+        // Blur scales with how far the eased position still lags the
+        // scroll target — naturally strongest during fast scrolling and
+        // fading out on its own as the ease catches up, no extra timers.
         const applyBlur = progress < MOTION_BLUR_PROGRESS_CUTOFF;
-        const blurPx = applyBlur ? Math.min(MAX_BLUR_PX, velocity * 30) : 0;
+        const blurPx = applyBlur ? Math.min(MAX_BLUR_PX, Math.abs(remaining) * 0.8) : 0;
 
         currentFrameRef.current = frameIndex;
-        lastScrollTimeRef.current = now;
         drawFrame(frameIndex, blurPx);
-
-        if (applyBlur && blurPx > 0.1) {
-          if (blurSettleTimeoutRef.current) clearTimeout(blurSettleTimeoutRef.current);
-          blurSettleTimeoutRef.current = setTimeout(() => {
-            drawFrame(currentFrameRef.current, 0);
-          }, BLUR_SETTLE_MS);
-        }
       }
 
       // Thin scroll-down guide — only during the first few frames
@@ -187,12 +188,11 @@ export default function Hero() {
       }
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
     // Initial draw of frame 0
     drawFrame(0);
+    rafIdRef.current = requestAnimationFrame(tick);
     return () => {
-      window.removeEventListener("scroll", handleScroll);
-      if (blurSettleTimeoutRef.current) clearTimeout(blurSettleTimeoutRef.current);
+      if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current);
     };
   }, [drawFrame]);
 
