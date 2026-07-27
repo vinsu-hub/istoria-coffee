@@ -13,18 +13,33 @@ import { frameUrls, TOTAL_FRAMES } from "@/lib/frames";
  * As you scroll through the section, progress = (0 to 1)
  * maps to frame index = (0 to TOTAL_FRAMES-1).
  *
- * No loading UI is shown — only the nav fades in immediately, frames
- * preload silently in the background (and are cached by the browser
- * for subsequent visits), and the first frame auto-fades in once ready.
+ * While frames are still preloading, a fading logo + tagline placeholder
+ * is shown instead of the (still-invisible) canvas — only the nav bar
+ * appears immediately. Once the first frame is ready it auto-fades in.
+ *
+ * The first deliberate scroll/wheel input inside the hero hands control
+ * to an auto-scroll driver that smoothly carries the page the rest of
+ * the way to the last frame, instead of requiring the user to keep
+ * scrolling manually through all 145 frames.
  */
 
 const HERO_SCROLL_VH = 500; // total viewport heights for animation = 500vh = 5x viewport scroll
 const SCROLL_SENSITIVITY = 1.02; // +2% sensitivity — reaches the last frame slightly before the nominal scroll distance
 const SCROLL_GUIDE_FRAME_CUTOFF = 10; // thin scroll-down guide shows only for the first N frames
 const MOTION_BLUR_PROGRESS_CUTOFF = 0.5; // motion blur only applied in the first half of the animation
-const MAX_BLUR_PX = 6;
+const MAX_BLUR_PX = 3; // reduced for a subtler effect
+const BLUR_SCALE = 0.45; // reduced alongside MAX_BLUR_PX
 const EASE_FACTOR = 0.12; // how much of the remaining distance to the target frame is closed each animation tick (higher = snappier, lower = smoother/slower)
 const SNAP_EPSILON = 0.05; // once this close to the target frame, snap exactly instead of asymptotically crawling forever
+
+const AUTO_SCROLL_PX_PER_SEC = 1600; // stable, constant auto-scroll speed once triggered
+const AUTO_SCROLL_MIN_MS = 900;
+const AUTO_SCROLL_MAX_MS = 3200;
+const AUTO_SCROLL_ARRIVE_PROGRESS = 0.995; // don't auto-trigger again once basically at the end
+
+function easeInOutQuad(t: number) {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
 
 export default function Hero() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -39,6 +54,17 @@ export default function Hero() {
   const [showScrollGuide, setShowScrollGuide] = useState(true);
   const animationComplete = useRef(false);
   const scrollGuideVisibleRef = useRef(true);
+  const touchStartYRef = useRef<number | null>(null);
+
+  // Auto-scroll-to-end driver state
+  const autoScrollRef = useRef<{
+    active: boolean;
+    startY: number;
+    targetY: number;
+    startTime: number;
+    duration: number;
+    rafId: number | null;
+  }>({ active: false, startY: 0, targetY: 0, startTime: 0, duration: 0, rafId: null });
 
   // Resize canvas to match container dimensions with DPR scaling
   const resizeCanvas = useCallback(() => {
@@ -165,7 +191,7 @@ export default function Hero() {
         // scroll target — naturally strongest during fast scrolling and
         // fading out on its own as the ease catches up, no extra timers.
         const applyBlur = progress < MOTION_BLUR_PROGRESS_CUTOFF;
-        const blurPx = applyBlur ? Math.min(MAX_BLUR_PX, Math.abs(remaining) * 0.8) : 0;
+        const blurPx = applyBlur ? Math.min(MAX_BLUR_PX, Math.abs(remaining) * BLUR_SCALE) : 0;
 
         currentFrameRef.current = frameIndex;
         drawFrame(frameIndex, blurPx);
@@ -213,6 +239,134 @@ export default function Hero() {
     return () => observer.disconnect();
   }, [resizeCanvas, drawFrame]);
 
+  // Auto-scroll-to-end: the first forward scroll/wheel gesture inside the
+  // hero's pinned range takes over and smoothly carries the page all the
+  // way to the last frame, at a constant, stable speed. An upward gesture
+  // while it's running cancels it immediately, handing control back.
+  useEffect(() => {
+    const stopAutoScroll = () => {
+      const state = autoScrollRef.current;
+      if (state.rafId !== null) cancelAnimationFrame(state.rafId);
+      state.active = false;
+      state.rafId = null;
+    };
+
+    const runAutoScroll = () => {
+      const state = autoScrollRef.current;
+      const now = performance.now();
+      const elapsed = now - state.startTime;
+      const t = Math.min(1, elapsed / state.duration);
+      const y = state.startY + (state.targetY - state.startY) * easeInOutQuad(t);
+      window.scrollTo(0, y);
+
+      if (t >= 1) {
+        stopAutoScroll();
+        return;
+      }
+      state.rafId = requestAnimationFrame(runAutoScroll);
+    };
+
+    const startAutoScroll = () => {
+      if (!sectionRef.current) return;
+      const rect = sectionRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const scrollableDistance = rect.height - viewportHeight;
+      if (scrollableDistance <= 0) return;
+
+      const sectionAbsoluteTop = window.scrollY + rect.top;
+      const targetY = sectionAbsoluteTop + scrollableDistance / SCROLL_SENSITIVITY;
+      const startY = window.scrollY;
+      const distance = Math.abs(targetY - startY);
+      if (distance < 2) return;
+
+      const duration = Math.min(
+        AUTO_SCROLL_MAX_MS,
+        Math.max(AUTO_SCROLL_MIN_MS, (distance / AUTO_SCROLL_PX_PER_SEC) * 1000)
+      );
+
+      const state = autoScrollRef.current;
+      state.active = true;
+      state.startY = startY;
+      state.targetY = targetY;
+      state.startTime = performance.now();
+      state.duration = duration;
+      if (state.rafId !== null) cancelAnimationFrame(state.rafId);
+      state.rafId = requestAnimationFrame(runAutoScroll);
+    };
+
+    const isInsideHeroRange = () => {
+      if (!sectionRef.current) return false;
+      const rect = sectionRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const scrollableDistance = rect.height - viewportHeight;
+      if (scrollableDistance <= 0) return false;
+      const scrolled = -rect.top;
+      // Must match the tick loop's progress formula (with sensitivity
+      // applied) — otherwise "finished" here and "finished" there disagree
+      // and forward scroll past the end gets stuck re-triggering forever.
+      const progress = (scrolled / scrollableDistance) * SCROLL_SENSITIVITY;
+      return progress > -0.01 && progress < AUTO_SCROLL_ARRIVE_PROGRESS;
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      const state = autoScrollRef.current;
+
+      if (state.active) {
+        // Upward gesture cancels — hand control back to the user immediately.
+        if (e.deltaY < -4) {
+          stopAutoScroll();
+          return;
+        }
+        // Already auto-scrolling forward — swallow further input so it
+        // doesn't fight the programmatic scroll.
+        e.preventDefault();
+        return;
+      }
+
+      if (e.deltaY > 0 && isInsideHeroRange()) {
+        e.preventDefault();
+        startAutoScroll();
+      }
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartYRef.current = e.touches[0]?.clientY ?? null;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const state = autoScrollRef.current;
+      const startYTouch = touchStartYRef.current;
+      if (startYTouch === null) return;
+      const currentY = e.touches[0]?.clientY ?? startYTouch;
+      const delta = startYTouch - currentY; // positive = swiping up = scrolling down
+
+      if (state.active) {
+        if (delta < -4) {
+          stopAutoScroll();
+          return;
+        }
+        e.preventDefault();
+        return;
+      }
+
+      if (delta > 4 && isInsideHeroRange()) {
+        e.preventDefault();
+        startAutoScroll();
+      }
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      stopAutoScroll();
+    };
+  }, []);
+
   return (
     <section
       ref={sectionRef}
@@ -231,6 +385,25 @@ export default function Hero() {
             transition: "opacity 0.9s ease-out",
           }}
         />
+
+        {/* Loading placeholder — logo + tagline, pulsing while frames preload in the background */}
+        <div
+          className="absolute inset-0 bg-white flex items-center justify-center z-10 pointer-events-none"
+          style={{
+            opacity: firstFrameReady ? 0 : 1,
+            transition: "opacity 0.6s ease-out",
+          }}
+        >
+          <div
+            className="flex flex-col items-center gap-4"
+            style={{ animation: "fade-in-out 2.4s ease-in-out infinite" }}
+          >
+            <img src="/brand/logo.png" alt="Istoria Coffee" className="w-24 h-24 sm:w-28 sm:h-28" />
+            <p className="font-accent text-2xl sm:text-3xl text-charcoal-light italic">
+              Tara kape?
+            </p>
+          </div>
+        </div>
 
         {/* Thin scroll-down guide — visible only for the first few frames */}
         <div
