@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "WebFetch(domain:github.com)",
-      "Bash(mkdir -p \"D:/istoria/.claude/skills\")",
-      "Bash(cp -r \"D:/VARIX/.claude/skills/\"* \"D:/istoria/.claude/skills/\")"
-    ]
-  }
-}

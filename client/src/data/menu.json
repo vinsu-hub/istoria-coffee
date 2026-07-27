@@ -1,0 +1,93 @@
+{
+  "drinks": {
+    "basics": [
+      { "id": "americano", "name": "Americano", "hot": 79, "iced": 89 },
+      { "id": "cappuccino", "name": "Cappuccino", "hot": 89, "iced": 99 },
+      { "id": "flat-white", "name": "Flat White", "hot": 89, "iced": 99 }
+    ],
+    "specials": [
+      { "id": "baristas-choice", "name": "Barista's Choice", "price": 159, "tag": "possible-bestseller" },
+      { "id": "caramel-macchiato", "name": "Caramel Macchiato", "price": 149, "tag": "possible-bestseller" },
+      { "id": "crunchy-biscoff", "name": "Crunchy Biscoff", "price": 149 },
+      { "id": "cinnamon-agave", "name": "Cinnamon Agave", "price": 149 },
+      { "id": "matcha-espresso-fusion", "name": "Matcha Espresso Fusion", "price": 149 },
+      { "id": "salted-caramel", "name": "Salted Caramel", "price": 149, "tag": "possible-bestseller" }
+    ],
+    "latte": [
+      { "id": "butterscotch", "name": "Butterscotch", "hot": 129, "iced": 139 },
+      { "id": "french-vanilla", "name": "French Vanilla", "hot": 129, "iced": 139 },
+      { "id": "hazelnut", "name": "Hazelnut", "hot": 129, "iced": 139 },
+      { "id": "mocha", "name": "Mocha", "hot": 129, "iced": 139 },
+      { "id": "spanish", "name": "Spanish", "hot": 129, "iced": 139 },
+      { "id": "sea-salt", "name": "Sea Salt", "hot": 129, "iced": 139 },
+      { "id": "white-chocolate", "name": "White Chocolate", "hot": 129, "iced": 139 }
+    ],
+    "nonCoffee": [
+      { "id": "choco", "name": "Choco", "price": 139 },
+      { "id": "choco-hazelnut", "name": "Choco Hazelnut", "price": 139 },
+      { "id": "choco-almond", "name": "Choco Almond", "price": 139 },
+      { "id": "strawberry-milk", "name": "Strawberry Milk", "price": 139, "note": "possible-iced-only" },
+      { "id": "creamy-butterscotch", "name": "Creamy Butterscotch", "price": 139 },
+      { "id": "sakura-spritz", "name": "Sakura Spritz", "price": 149, "note": "possible-iced-only" },
+      { "id": "lotus-biscoff", "name": "Lotus Biscoff", "price": 149 }
+    ],
+    "oatBased": [
+      { "id": "caramel-popcorn-oat", "name": "Caramel Popcorn", "price": 169 },
+      { "id": "honey-seasalt-oat", "name": "Honey Seasalt", "price": 169 },
+      { "id": "coconut-oat", "name": "Coconut", "price": 169 },
+      { "id": "sakura-oat", "name": "Sakura Oat", "price": 159, "note": "possible-iced-only" },
+      { "id": "biscoff-oat", "name": "Biscoff Oat", "price": 159 }
+    ],
+    "matchaBlends": [
+      { "id": "matcha", "name": "Matcha", "price": 139 },
+      { "id": "choco-matcha", "name": "Choco Matcha", "price": 139 },
+      { "id": "strawberry-matcha", "name": "Strawberry Matcha", "price": 139, "note": "possible-iced-only" },
+      { "id": "blueberry-matcha", "name": "Blueberry Matcha", "price": 139, "note": "possible-iced-only" },
+      { "id": "white-choco-matcha", "name": "White Choco Matcha", "price": 139 }
+    ]
+  },
+  "food": {
+    "waffles": [
+      { "id": "waffle-blt", "name": "Waffle B.L.T", "price": 159 },
+      { "id": "chicken-slaw-waffle", "name": "Chicken-Slaw Waffle", "price": 159 }
+    ],
+    "mains": [
+      { "id": "loaded-nachos", "name": "Loaded Nachos", "price": 189 },
+      { "id": "american-plate", "name": "American Plate", "price": 179, "note": "choice of Bacon or Spam" },
+      { "id": "beef-tapa", "name": "Beef Tapa", "price": 179 },
+      { "id": "breakfast-sausage", "name": "Breakfast Sausage", "price": 169 }
+    ],
+    "patata": [
+      { "id": "classic-patata", "name": "Classic Patata", "price": 89 },
+      { "id": "garlic-parmesan-patata", "name": "Garlic Parmesan Patata", "price": 99 },
+      { "id": "herb-paprika-patata", "name": "Herb Paprika Patata", "price": 99 }
+    ],
+    "pasta": [
+      { "id": "chicken-pesto", "name": "Chicken Pesto", "price": 169 },
+      { "id": "aglio-olio-tuna", "name": "Aglio Olio Tuna", "price": 169 },
+      { "id": "trivelle-bolognese", "name": "Trivelle Bolognese", "price": 169 },
+      { "id": "chicken-alfredo", "name": "Chicken Alfredo", "price": 169 }
+    ],
+    "riceBowls": [
+      { "id": "mushroom-gravy", "name": "Mushroom Gravy", "price": 149 },
+      { "id": "yangyeom-glazed", "name": "Yangyeom Glazed", "price": 149 },
+      { "id": "honey-lemon", "name": "Honey Lemon", "price": 149 }
+    ],
+    "partyTrays": [
+      { "id": "chick-basket", "name": "Chick Basket", "price": 600, "servesNote": "Good for 4-5 pax" },
+      { "id": "pasta-party", "name": "Pasta Party", "price": 900, "servesNote": "Good for 5-6 pax" },
+      { "id": "nacho-grande", "name": "Nacho Grande", "price": 900, "servesNote": "Good for 4-5 pax" },
+      { "id": "patata-tray", "name": "Patata Tray", "price": 500, "servesNote": "Good for 4-5 pax" }
+    ]
+  },
+  "addOns": [
+    { "id": "espresso-shot", "name": "Espresso Shot", "price": 40 },
+    { "id": "sauce-syrup-drizzle", "name": "Sauce, Syrup, or Drizzle", "price": 50 },
+    { "id": "oatside", "name": "Oatside", "price": 50 }
+  ],
+  "meta": {
+    "address": "Bay, Laguna, PH 4033",
+    "hours": "12PM – 3AM",
+    "tagline": "Kape at Kwentuhan"
+  }
+}

@@ -1,0 +1,10 @@
+[
+  { "id": "seed-1", "message": "Ang sarap ng coffee dito! Balik ulit bukas.", "deviceId": "seed", "createdAt": "2026-07-25T10:00:00.000Z", "displayDate": "Jul 25" },
+  { "id": "seed-2", "message": "First time ko dito — ang cozy! ❤️", "deviceId": "seed", "createdAt": "2026-07-24T10:00:00.000Z", "displayDate": "Jul 24" },
+  { "id": "seed-3", "message": "Iba talaga yung vibes sa Istoria.", "deviceId": "seed", "createdAt": "2026-07-23T10:00:00.000Z", "displayDate": "Jul 23" },
+  { "id": "seed-4", "message": "Matcha espresso fusion — game changer!", "deviceId": "seed", "createdAt": "2026-07-22T10:00:00.000Z", "displayDate": "Jul 22" },
+  { "id": "seed-5", "message": "Thank you sa late night kape.", "deviceId": "seed", "createdAt": "2026-07-21T10:00:00.000Z", "displayDate": "Jul 21" },
+  { "id": "seed-6", "message": "Pinaka-favorite ko sa Bay! ☕", "deviceId": "seed", "createdAt": "2026-07-20T10:00:00.000Z", "displayDate": "Jul 20" },
+  { "id": "seed-7", "message": "Best coffee sa National Highway!", "deviceId": "seed", "createdAt": "2026-07-19T10:00:00.000Z", "displayDate": "Jul 19" },
+  { "id": "seed-8", "message": "Ang ganda ng interior. Parang Japan!", "deviceId": "seed", "createdAt": "2026-07-18T10:00:00.000Z", "displayDate": "Jul 18" }
+]
