@@ -5,7 +5,7 @@ import { Redis } from "@upstash/redis";
 // Statically imported (bundled directly into the JS output) so seed data is
 // always available even when the serverless bundler doesn't preserve the
 // runtime file path server/notes.ts would otherwise compute from __dirname.
-import seedNotes from "./data/notes.json";
+import seedNotes from "./data/notes.json" with { type: "json" };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
