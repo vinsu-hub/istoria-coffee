@@ -23,6 +23,7 @@ export default function Hero() {
   const imageCache = useRef<Map<number, HTMLImageElement>>(new Map());
   const currentFrameRef = useRef(0);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [firstFrameReady, setFirstFrameReady] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState(0);
   const [showContent, setShowContent] = useState(false);
   const animationComplete = useRef(false);
@@ -57,6 +58,12 @@ export default function Hero() {
       img.onload = () => {
         if (!mounted) return;
         imageCache.current.set(idx, img);
+        if (idx === 0) {
+          drawFrame(0);
+          // Let the browser paint the drawn frame before fading it in,
+          // so it eases into view instead of popping up already-visible.
+          requestAnimationFrame(() => setFirstFrameReady(true));
+        }
       };
       img.src = frameUrls[idx];
     }
@@ -180,20 +187,31 @@ export default function Hero() {
         ref={containerRef}
         className="sticky top-0 h-screen overflow-hidden bg-white"
       >
-        <canvas ref={canvasRef} className="block w-full h-full" />
+        <canvas
+          ref={canvasRef}
+          className="block w-full h-full"
+          style={{
+            opacity: firstFrameReady ? 1 : 0,
+            transition: "opacity 0.9s ease-out",
+          }}
+        />
 
-        {/* Loading state */}
-        {!isLoaded && (
-          <div className="absolute inset-0 bg-white flex items-center justify-center z-10">
-            <div className="text-center">
-              <div className="w-8 h-8 border-2 border-espresso/20 border-t-espresso rounded-full animate-spin mx-auto mb-3" />
-              <p className="font-body text-sm text-charcoal-light">Loading animation...</p>
-              <p className="font-body text-xs text-charcoal-light/40 mt-1">
-                {imagesLoaded}/{TOTAL_FRAMES} frames
-              </p>
-            </div>
+        {/* Loading state — fades out once the first frame is ready, instead of popping away */}
+        <div
+          className="absolute inset-0 bg-white flex items-center justify-center z-10 pointer-events-none"
+          style={{
+            opacity: isLoaded ? 0 : 1,
+            transition: "opacity 0.6s ease-out",
+          }}
+        >
+          <div className="text-center">
+            <div className="w-8 h-8 border-2 border-espresso/20 border-t-espresso rounded-full animate-spin mx-auto mb-3" />
+            <p className="font-body text-sm text-charcoal-light">Loading animation...</p>
+            <p className="font-body text-xs text-charcoal-light/40 mt-1">
+              {imagesLoaded}/{TOTAL_FRAMES} frames
+            </p>
           </div>
-        )}
+        </div>
 
         {/* Scroll hint — shown while animation hasn't completed */}
         <div
