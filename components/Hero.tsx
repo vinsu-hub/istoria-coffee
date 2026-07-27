@@ -2,12 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import PhotoPlaceholder from "./PhotoPlaceholder";
 
 const DESKTOP_FRAME_COUNT = 120;
 const MOBILE_FRAME_COUNT = 60;
 const MOBILE_BREAKPOINT = 768;
-const CHAPTER_COUNT = 3;
+
+// Chapter progress bands as [start, end] fractions of total scroll progress,
+// with a short cross-dissolve band at each boundary. Computed directly from
+// scroll progress every tick (no CSS transitions, no chapter-index state) so
+// a chapter's fade-out and the next one's fade-in are always exact mirror
+// images of each other — never both fully visible at once.
+const CHAPTER_BANDS: [number, number][] = [
+  [0, 0.36],
+  [0.32, 0.68],
+  [0.64, 1],
+];
+const FADE = 0.04;
 
 function frameSrc(isMobile: boolean, index: number): string {
   const folder = isMobile ? "mobile" : "desktop";
@@ -41,18 +51,23 @@ function drawImageCover(
   ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
 }
 
-function chapterClass(active: boolean) {
-  return `absolute inset-0 flex flex-col justify-end px-5 md:px-10 pb-16 md:pb-24 transition-all duration-700 ease-out ${
-    active ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3 pointer-events-none"
-  }`;
+function bandOpacity(progress: number, [start, end]: [number, number]): number {
+  if (progress <= start - FADE || progress >= end + FADE) return 0;
+  if (progress < start + FADE) return (progress - (start - FADE)) / (2 * FADE);
+  if (progress > end - FADE) return (end + FADE - progress) / (2 * FADE);
+  return 1;
 }
 
 export default function Hero() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const copyRefs = [
+    useRef<HTMLDivElement>(null),
+    useRef<HTMLDivElement>(null),
+    useRef<HTMLDivElement>(null),
+  ];
   const [loaded, setLoaded] = useState(false);
   const [revealed, setRevealed] = useState(false);
-  const [chapter, setChapter] = useState(0);
   const [reducedMotion] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -74,7 +89,6 @@ export default function Hero() {
     let currentExact = targetFrame;
     let cancelled = false;
     let trigger: import("gsap/ScrollTrigger").ScrollTrigger | undefined;
-    let currentChapter = 0;
 
     function renderFrame(exact: number) {
       if (!canvas) return;
@@ -95,6 +109,16 @@ export default function Hero() {
         drawImageCover(ctx!, img1, w, h);
         ctx!.globalAlpha = 1;
       }
+    }
+
+    function updateChapters(progress: number) {
+      copyRefs.forEach((ref, i) => {
+        const el = ref.current;
+        if (!el) return;
+        const opacity = bandOpacity(progress, CHAPTER_BANDS[i]);
+        el.style.opacity = String(opacity);
+        el.style.pointerEvents = opacity > 0.5 ? "auto" : "none";
+      });
     }
 
     function resizeCanvas() {
@@ -119,6 +143,7 @@ export default function Hero() {
           renderFrame(targetFrame);
           setLoaded(true);
           setRevealed(true);
+          updateChapters(reducedMotion ? 0.5 : 0);
           window.dispatchEvent(new Event("hero-ready"));
         }
       };
@@ -138,19 +163,12 @@ export default function Hero() {
           trigger = ScrollTrigger.create({
             trigger: section,
             start: "top top",
-            end: () => `+=${window.innerHeight * 4.5}`,
+            end: () => `+=${window.innerHeight * 2.2}`,
             pin: true,
             scrub: 0.5,
             onUpdate: (self) => {
               renderFrame(self.progress * (frameCount - 1));
-              const next = Math.min(
-                CHAPTER_COUNT - 1,
-                Math.floor(self.progress * CHAPTER_COUNT),
-              );
-              if (next !== currentChapter) {
-                currentChapter = next;
-                setChapter(next);
-              }
+              updateChapters(self.progress);
             },
           });
         }),
@@ -162,6 +180,7 @@ export default function Hero() {
       window.removeEventListener("resize", resizeCanvas);
       trigger?.kill();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reducedMotion]);
 
   const background = (
@@ -201,9 +220,6 @@ export default function Hero() {
               A small coffee shop in Bay, Laguna. Slow drinks, long
               conversations, open until the streets go quiet.
             </p>
-            <Link href="/order" className="btn btn-primary self-start mt-6">
-              Tara, Kape? →
-            </Link>
           </div>
           <div className="max-w-[46ch]">
             <span className="block text-xs tracking-wide uppercase font-semibold text-accent-200 mb-3">
@@ -223,10 +239,10 @@ export default function Hero() {
             <p className="text-lg text-neutral-100/90 max-w-[36ch]">
               Bring your barkada, your notebook, or nothing at all.
             </p>
-            <Link href="/order" className="btn btn-primary self-start mt-5">
-              Tara, Kape? →
-            </Link>
           </div>
+          <Link href="/order" className="btn btn-primary self-start">
+            Tara, Kape? →
+          </Link>
         </div>
       </section>
     );
@@ -236,42 +252,46 @@ export default function Hero() {
     <section ref={sectionRef} className="relative w-full h-[100svh] overflow-hidden bg-neutral-900">
       {background}
 
-      <div className={chapterClass(revealed && chapter === 0)}>
-        <h1 className="text-[40px] md:text-[62px] leading-[1.04] tracking-tight text-neutral-100">
-          Kape at
-          <br />
-          Kwentuhan
-        </h1>
-        <p className="text-base leading-relaxed mt-4.5 max-w-[42ch] text-neutral-100/85">
-          A small coffee shop in Bay, Laguna. Slow drinks, long
-          conversations, open until the streets go quiet.
-        </p>
-        <Link href="/order" className="btn btn-primary self-start mt-6">
-          Tara, Kape? →
-        </Link>
-      </div>
+      <div
+        className={`absolute inset-0 flex flex-col justify-end px-5 md:px-10 pb-16 md:pb-24 transition-opacity duration-500 ${
+          revealed ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <div className="relative min-h-[190px] md:min-h-[165px]">
+          <div ref={copyRefs[0]} className="absolute inset-0 flex flex-col justify-end">
+            <h1 className="text-[40px] md:text-[62px] leading-[1.04] tracking-tight text-neutral-100">
+              Kape at
+              <br />
+              Kwentuhan
+            </h1>
+            <p className="text-base leading-relaxed mt-4.5 max-w-[42ch] text-neutral-100/85">
+              A small coffee shop in Bay, Laguna. Slow drinks, long
+              conversations, open until the streets go quiet.
+            </p>
+          </div>
 
-      <div className={chapterClass(chapter === 1)}>
-        <div className="max-w-[46ch]">
-          <span className="block text-xs tracking-wide uppercase font-semibold text-accent-200 mb-3">
-            The shop
-          </span>
-          <h2 className="text-[26px] md:text-[34px] leading-tight text-neutral-100">
-            A late table, always free
-          </h2>
-          <p className="text-[15.5px] leading-relaxed mt-4 text-neutral-100/85 max-w-[44ch]">
-            Istoria opens when the afternoon slows down and closes when the
-            last story does. Warm wood, low lamps, mismatched chairs — the
-            kind of place where one cup turns into three and nobody looks at
-            the clock.
-          </p>
+          <div ref={copyRefs[1]} className="absolute inset-0 flex flex-col justify-end opacity-0">
+            <span className="block text-xs tracking-wide uppercase font-semibold text-accent-200 mb-3">
+              The shop
+            </span>
+            <h2 className="text-[26px] md:text-[34px] leading-tight text-neutral-100">
+              A late table, always free
+            </h2>
+            <p className="text-[15.5px] leading-relaxed mt-4 text-neutral-100/85 max-w-[44ch]">
+              Istoria opens when the afternoon slows down and closes when the
+              last story does. Warm wood, low lamps, mismatched chairs — the
+              kind of place where one cup turns into three and nobody looks at
+              the clock.
+            </p>
+          </div>
+
+          <div ref={copyRefs[2]} className="absolute inset-0 flex flex-col justify-end opacity-0">
+            <p className="text-2xl md:text-3xl text-neutral-100 leading-snug max-w-[24ch]">
+              Bring your barkada, your notebook, or nothing at all.
+            </p>
+          </div>
         </div>
-      </div>
 
-      <div className={chapterClass(chapter === 2)}>
-        <p className="text-2xl md:text-3xl text-neutral-100 leading-snug max-w-[20ch]">
-          Bring your barkada, your notebook, or nothing at all.
-        </p>
         <Link href="/order" className="btn btn-primary self-start mt-6">
           Tara, Kape? →
         </Link>
