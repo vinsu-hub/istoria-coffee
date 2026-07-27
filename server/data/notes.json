@@ -7,5 +7,12 @@
   { "id": "seed-6", "message": "Pinaka-favorite ko sa Bay! ☕", "deviceId": "seed", "createdAt": "2026-07-20T10:00:00.000Z", "displayDate": "Jul 20" },
   { "id": "seed-7", "message": "Best coffee sa National Highway!", "deviceId": "seed", "createdAt": "2026-07-19T10:00:00.000Z", "displayDate": "Jul 19" },
   { "id": "seed-8", "message": "Ang ganda ng interior. Parang Japan!", "deviceId": "seed", "createdAt": "2026-07-18T10:00:00.000Z", "displayDate": "Jul 18" },
-  { "id": "seed-9", "message": "I miss you Daphne!", "deviceId": "seed", "createdAt": "2026-07-26T10:00:00.000Z", "displayDate": "Jul 26" }
+  { "id": "seed-9", "message": "I miss you Daphne!", "deviceId": "seed", "createdAt": "2026-07-26T10:00:00.000Z", "displayDate": "Jul 26" },
+  { "id": "seed-10", "message": "kamusta ka na daphne?", "deviceId": "seed", "createdAt": "2026-07-26T14:00:00.000Z", "displayDate": "Jul 26" },
+  { "id": "seed-11", "message": "Sarap mag-aral dito habang umuulan. ☔", "deviceId": "seed", "createdAt": "2026-07-17T10:00:00.000Z", "displayDate": "Jul 17" },
+  { "id": "seed-12", "message": "Grabe yung Barista's Choice, sobrang sarap!", "deviceId": "seed", "createdAt": "2026-07-16T10:00:00.000Z", "displayDate": "Jul 16" },
+  { "id": "seed-13", "message": "Nakakarelax dito after work. Salamat Istoria!", "deviceId": "seed", "createdAt": "2026-07-15T10:00:00.000Z", "displayDate": "Jul 15" },
+  { "id": "seed-14", "message": "Date spot namin ni jowa ❤️ laging masaya dito.", "deviceId": "seed", "createdAt": "2026-07-14T10:00:00.000Z", "displayDate": "Jul 14" },
+  { "id": "seed-15", "message": "Staff are so kind! Will definitely come back.", "deviceId": "seed", "createdAt": "2026-07-13T10:00:00.000Z", "displayDate": "Jul 13" },
+  { "id": "seed-16", "message": "Group study spot na namin to. Thank you Istoria!", "deviceId": "seed", "createdAt": "2026-07-12T10:00:00.000Z", "displayDate": "Jul 12" }
 ]
