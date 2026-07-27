@@ -1,8 +1,16 @@
 /**
- * SocialGrid — embedded IG-priority post grid.
- * BLOCKED: SnapWidget or Behold.so account not set up yet.
- * Placeholder: grid with on-brand muted styling.
+ * SocialGrid — recent post grid, sourced from real shop photos
+ * until a live SnapWidget/Behold.so feed is connected.
  */
+
+const GRID_PHOTOS = [
+  "/brand/social/1.jpg",
+  "/brand/social/2.jpg",
+  "/brand/social/3.jpg",
+  "/brand/social/4.jpg",
+  "/brand/social/5.jpg",
+  "/brand/social/6.jpg",
+];
 
 export default function SocialGrid() {
   return (
@@ -15,17 +23,22 @@ export default function SocialGrid() {
           </h2>
         </div>
 
-        {/* Placeholder IG grid — muted, on-brand */}
+        {/* Recent post grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl mx-auto mb-8">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div
-              key={i}
-              className="aspect-square bg-parchment border border-border rounded-sm flex items-center justify-center"
+          {GRID_PHOTOS.map((src, idx) => (
+            <a
+              key={src}
+              href="https://instagram.com/istoriacoffee"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="aspect-square rounded-sm overflow-hidden border border-border block"
             >
-              <svg className="w-6 h-6 text-charcoal/15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 001.5-1.5V5.25a1.5 1.5 0 00-1.5-1.5H3.75a1.5 1.5 0 00-1.5 1.5v14.25c0 .828.672 1.5 1.5 1.5z" />
-              </svg>
-            </div>
+              <img
+                src={src}
+                alt={`Istoria Coffee — Instagram post ${idx + 1}`}
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+              />
+            </a>
           ))}
         </div>
 

@@ -12,9 +12,18 @@ import { frameUrls, TOTAL_FRAMES } from "@/lib/frames";
  * The canvas container is sticky at top:0, height:100vh.
  * As you scroll through the section, progress = (0 to 1)
  * maps to frame index = (0 to TOTAL_FRAMES-1).
+ *
+ * No loading UI is shown — only the nav fades in immediately, frames
+ * preload silently in the background (and are cached by the browser
+ * for subsequent visits), and the first frame auto-fades in once ready.
  */
 
 const HERO_SCROLL_VH = 500; // total viewport heights for animation = 500vh = 5x viewport scroll
+const SCROLL_SENSITIVITY = 1.02; // +2% sensitivity — reaches the last frame slightly before the nominal scroll distance
+const SCROLL_GUIDE_FRAME_CUTOFF = 10; // thin scroll-down guide shows only for the first N frames
+const MOTION_BLUR_PROGRESS_CUTOFF = 0.5; // motion blur only applied in the first half of the animation
+const MAX_BLUR_PX = 6;
+const BLUR_SETTLE_MS = 100; // how long after the last scroll tick before blur eases back to 0
 
 export default function Hero() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -22,11 +31,13 @@ export default function Hero() {
   const sectionRef = useRef<HTMLElement>(null);
   const imageCache = useRef<Map<number, HTMLImageElement>>(new Map());
   const currentFrameRef = useRef(0);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const lastScrollTimeRef = useRef(0);
+  const blurSettleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [firstFrameReady, setFirstFrameReady] = useState(false);
-  const [imagesLoaded, setImagesLoaded] = useState(0);
   const [showContent, setShowContent] = useState(false);
+  const [showScrollGuide, setShowScrollGuide] = useState(true);
   const animationComplete = useRef(false);
+  const scrollGuideVisibleRef = useRef(true);
 
   // Resize canvas to match container dimensions with DPR scaling
   const resizeCanvas = useCallback(() => {
@@ -46,50 +57,8 @@ export default function Hero() {
     ctx.scale(dpr, dpr);
   }, []);
 
-  // Preload frames in background
-  useEffect(() => {
-    let mounted = true;
-    let loaded = 0;
-
-    // Priority: first, middle, last frame for instant display
-    const priorityFrames = [0, Math.floor(TOTAL_FRAMES / 2), TOTAL_FRAMES - 1];
-    for (const idx of priorityFrames) {
-      const img = new Image();
-      img.onload = () => {
-        if (!mounted) return;
-        imageCache.current.set(idx, img);
-        if (idx === 0) {
-          drawFrame(0);
-          // Let the browser paint the drawn frame before fading it in,
-          // so it eases into view instead of popping up already-visible.
-          requestAnimationFrame(() => setFirstFrameReady(true));
-        }
-      };
-      img.src = frameUrls[idx];
-    }
-
-    // Preload all frames progressively
-    for (let i = 0; i < TOTAL_FRAMES; i++) {
-      const img = new Image();
-      img.onload = () => {
-        if (!mounted) return;
-        imageCache.current.set(i, img);
-        loaded++;
-        setImagesLoaded(loaded);
-        if (loaded >= Math.ceil(TOTAL_FRAMES * 0.2) && !isLoaded) {
-          setIsLoaded(true);
-        }
-      };
-      img.src = frameUrls[i];
-    }
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // Draw frame to canvas
-  const drawFrame = useCallback((frameIndex: number) => {
+  // Draw frame to canvas, optionally with a motion-blur filter
+  const drawFrame = useCallback((frameIndex: number, blurPx = 0) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -116,8 +85,47 @@ export default function Hero() {
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
+    ctx.filter = blurPx > 0.1 ? `blur(${blurPx}px)` : "none";
     ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+    ctx.filter = "none";
   }, []);
+
+  // Preload frames in background — cached by the browser for next visits
+  useEffect(() => {
+    let mounted = true;
+
+    // Priority: first, middle, last frame for instant display
+    const priorityFrames = [0, Math.floor(TOTAL_FRAMES / 2), TOTAL_FRAMES - 1];
+    for (const idx of priorityFrames) {
+      const img = new Image();
+      img.onload = () => {
+        if (!mounted) return;
+        imageCache.current.set(idx, img);
+        if (idx === 0) {
+          drawFrame(0);
+          // Let the browser paint the drawn frame before fading it in,
+          // so it eases into view instead of popping up already-visible.
+          requestAnimationFrame(() => setFirstFrameReady(true));
+        }
+      };
+      img.src = frameUrls[idx];
+    }
+
+    // Preload the rest of the sequence progressively
+    for (let i = 0; i < TOTAL_FRAMES; i++) {
+      if (priorityFrames.includes(i)) continue;
+      const img = new Image();
+      img.onload = () => {
+        if (!mounted) return;
+        imageCache.current.set(i, img);
+      };
+      img.src = frameUrls[i];
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [drawFrame]);
 
   // Scroll handler — maps scroll to frame index
   useEffect(() => {
@@ -135,13 +143,38 @@ export default function Hero() {
       if (scrollableDistance <= 0) return;
 
       const scrolled = -rect.top;
-      const progress = Math.max(0, Math.min(1, scrolled / scrollableDistance));
+      // +2% scroll sensitivity — completes the sequence slightly before
+      // the nominal scroll distance, reducing perceived travel.
+      const progress = Math.max(0, Math.min(1, (scrolled / scrollableDistance) * SCROLL_SENSITIVITY));
 
       const frameIndex = Math.floor(progress * (TOTAL_FRAMES - 1));
 
       if (frameIndex !== currentFrameRef.current) {
+        const now = performance.now();
+        const framesDelta = Math.abs(frameIndex - currentFrameRef.current);
+        const timeDelta = Math.max(1, now - (lastScrollTimeRef.current || now));
+        const velocity = framesDelta / timeDelta; // frames per ms
+
+        const applyBlur = progress < MOTION_BLUR_PROGRESS_CUTOFF;
+        const blurPx = applyBlur ? Math.min(MAX_BLUR_PX, velocity * 30) : 0;
+
         currentFrameRef.current = frameIndex;
-        drawFrame(frameIndex);
+        lastScrollTimeRef.current = now;
+        drawFrame(frameIndex, blurPx);
+
+        if (applyBlur && blurPx > 0.1) {
+          if (blurSettleTimeoutRef.current) clearTimeout(blurSettleTimeoutRef.current);
+          blurSettleTimeoutRef.current = setTimeout(() => {
+            drawFrame(currentFrameRef.current, 0);
+          }, BLUR_SETTLE_MS);
+        }
+      }
+
+      // Thin scroll-down guide — only during the first few frames
+      const shouldShowGuide = frameIndex < SCROLL_GUIDE_FRAME_CUTOFF;
+      if (shouldShowGuide !== scrollGuideVisibleRef.current) {
+        scrollGuideVisibleRef.current = shouldShowGuide;
+        setShowScrollGuide(shouldShowGuide);
       }
 
       // Show text overlay after animation completes (last 15% of scroll)
@@ -157,7 +190,10 @@ export default function Hero() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     // Initial draw of frame 0
     drawFrame(0);
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (blurSettleTimeoutRef.current) clearTimeout(blurSettleTimeoutRef.current);
+    };
   }, [drawFrame]);
 
   // Resize observer + initial setup
@@ -196,34 +232,20 @@ export default function Hero() {
           }}
         />
 
-        {/* Loading state — fades out once the first frame is ready, instead of popping away */}
+        {/* Thin scroll-down guide — visible only for the first few frames */}
         <div
-          className="absolute inset-0 bg-white flex items-center justify-center z-10 pointer-events-none"
+          className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none"
           style={{
-            opacity: isLoaded ? 0 : 1,
-            transition: "opacity 0.6s ease-out",
+            opacity: firstFrameReady && showScrollGuide ? 0.6 : 0,
+            transition: "opacity 0.5s ease-out",
           }}
         >
-          <div className="text-center">
-            <div className="w-8 h-8 border-2 border-espresso/20 border-t-espresso rounded-full animate-spin mx-auto mb-3" />
-            <p className="font-body text-sm text-charcoal-light">Loading animation...</p>
-            <p className="font-body text-xs text-charcoal-light/40 mt-1">
-              {imagesLoaded}/{TOTAL_FRAMES} frames
-            </p>
-          </div>
-        </div>
-
-        {/* Scroll hint — shown while animation hasn't completed */}
-        <div
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 transition-opacity duration-500"
-          style={{ opacity: showContent ? 0 : 0.5 }}
-        >
-          <div className="flex flex-col items-center gap-1">
-            <span className="font-body text-xs tracking-widest uppercase text-charcoal-light/60">Scroll</span>
-            <svg className="w-4 h-4 text-charcoal-light/40 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </div>
+          <span className="font-body text-[10px] tracking-[0.25em] uppercase text-charcoal-light/70">
+            Scroll
+          </span>
+          <span className="relative block w-px h-10 overflow-hidden bg-gradient-to-b from-charcoal-light/60 via-charcoal-light/30 to-transparent">
+            <span className="absolute inset-x-0 top-0 h-2 bg-charcoal-light/80 animate-pulse" />
+          </span>
         </div>
 
         {/* Text overlay — fades in after animation completes */}

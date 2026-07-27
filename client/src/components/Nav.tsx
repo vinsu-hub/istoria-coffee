@@ -53,7 +53,7 @@ export default function Nav() {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${bgClass}`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 animate-in fade-in duration-700 ${bgClass}`}
     >
       <div className="container flex items-center justify-between h-16 lg:h-20">
         <Link href="/" className="flex items-center gap-2">

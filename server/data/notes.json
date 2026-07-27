@@ -6,5 +6,6 @@
   { "id": "seed-5", "message": "Thank you sa late night kape.", "deviceId": "seed", "createdAt": "2026-07-21T10:00:00.000Z", "displayDate": "Jul 21" },
   { "id": "seed-6", "message": "Pinaka-favorite ko sa Bay! ☕", "deviceId": "seed", "createdAt": "2026-07-20T10:00:00.000Z", "displayDate": "Jul 20" },
   { "id": "seed-7", "message": "Best coffee sa National Highway!", "deviceId": "seed", "createdAt": "2026-07-19T10:00:00.000Z", "displayDate": "Jul 19" },
-  { "id": "seed-8", "message": "Ang ganda ng interior. Parang Japan!", "deviceId": "seed", "createdAt": "2026-07-18T10:00:00.000Z", "displayDate": "Jul 18" }
+  { "id": "seed-8", "message": "Ang ganda ng interior. Parang Japan!", "deviceId": "seed", "createdAt": "2026-07-18T10:00:00.000Z", "displayDate": "Jul 18" },
+  { "id": "seed-9", "message": "I miss you Daphne!", "deviceId": "seed", "createdAt": "2026-07-26T10:00:00.000Z", "displayDate": "Jul 26" }
 ]
