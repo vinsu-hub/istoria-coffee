@@ -7,6 +7,7 @@ import SocialGrid from "@/components/SocialGrid";
 import BoardPreview from "@/components/BoardPreview";
 import LocationMap from "@/components/LocationMap";
 import Footer from "@/components/Footer";
+import Reveal from "@/components/Reveal";
 
 /**
  * / — Landing page assembly.
@@ -22,11 +23,21 @@ export default function Home() {
         <div className="bg-parchment py-8 text-center">
           <StatusBadge />
         </div>
-        <AboutSection />
-        <MenuPreview />
-        <SocialGrid />
-        <BoardPreview />
-        <LocationMap />
+        <Reveal>
+          <AboutSection />
+        </Reveal>
+        <Reveal>
+          <MenuPreview />
+        </Reveal>
+        <Reveal>
+          <SocialGrid />
+        </Reveal>
+        <Reveal>
+          <BoardPreview />
+        </Reveal>
+        <Reveal>
+          <LocationMap />
+        </Reveal>
       </main>
 
       <Footer />
