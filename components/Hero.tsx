@@ -13,7 +13,7 @@ function frameSrc(isMobile: boolean, index: number): string {
   return `/images/hero-sequence/${folder}/${num}.webp`;
 }
 
-function drawCover(
+function drawImageCover(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   width: number,
@@ -36,7 +36,6 @@ function drawCover(
     offsetY = (height - drawHeight) / 2;
   }
 
-  ctx.clearRect(0, 0, width, height);
   ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
 }
 
@@ -44,6 +43,7 @@ export default function Hero() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [loaded, setLoaded] = useState(false);
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -53,13 +53,38 @@ export default function Hero() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
     const isMobile = window.innerWidth < MOBILE_BREAKPOINT;
     const frameCount = isMobile ? MOBILE_FRAME_COUNT : DESKTOP_FRAME_COUNT;
+    const targetFrame = prefersReducedMotion ? Math.round((frameCount - 1) * 0.5) : 0;
     const images: HTMLImageElement[] = [];
-    let loadedCount = 0;
-    let currentFrame = 0;
+    let currentExact = targetFrame;
     let cancelled = false;
     let trigger: import("gsap/ScrollTrigger").ScrollTrigger | undefined;
+
+    function renderFrame(exact: number) {
+      if (!canvas) return;
+      currentExact = exact;
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
+      const i0 = Math.max(0, Math.min(frameCount - 1, Math.floor(exact)));
+      const i1 = Math.min(frameCount - 1, i0 + 1);
+      const t = exact - i0;
+      const img0 = images[i0];
+      if (!img0?.complete) return;
+      ctx!.clearRect(0, 0, w, h);
+      drawImageCover(ctx!, img0, w, h);
+      const img1 = images[i1];
+      if (t > 0.02 && img1?.complete && i1 !== i0) {
+        ctx!.globalAlpha = t;
+        drawImageCover(ctx!, img1, w, h);
+        ctx!.globalAlpha = 1;
+      }
+    }
 
     function resizeCanvas() {
       if (!canvas || !section) return;
@@ -70,26 +95,21 @@ export default function Hero() {
       canvas.style.width = `${rect.width}px`;
       canvas.style.height = `${rect.height}px`;
       ctx?.scale(dpr, dpr);
-      const img = images[currentFrame];
-      if (img?.complete) drawCover(ctx!, img, rect.width, rect.height);
-    }
-
-    function renderFrame(index: number) {
-      const img = images[index];
-      if (!img || !img.complete || !canvas) return;
-      currentFrame = index;
-      const dpr = window.devicePixelRatio || 1;
-      drawCover(ctx!, img, canvas.width / dpr, canvas.height / dpr);
+      renderFrame(currentExact);
     }
 
     for (let i = 0; i < frameCount; i++) {
       const img = new Image();
+      if (i === targetFrame) img.fetchPriority = "high";
       img.src = frameSrc(isMobile, i);
       img.onload = () => {
         if (cancelled) return;
-        loadedCount++;
-        if (i === 0) renderFrame(0);
-        if (loadedCount === frameCount) setLoaded(true);
+        if (i === targetFrame) {
+          renderFrame(targetFrame);
+          setLoaded(true);
+          setRevealed(true);
+          window.dispatchEvent(new Event("hero-ready"));
+        }
       };
       images.push(img);
     }
@@ -97,25 +117,26 @@ export default function Hero() {
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
 
-    // gsap/ScrollTrigger are dynamically imported so they ship in a separate
-    // chunk rather than bloating the page's main JS bundle and hydration cost.
-    import("gsap").then(({ default: gsap }) =>
-      import("gsap/ScrollTrigger").then(({ ScrollTrigger }) => {
-        if (cancelled) return;
-        gsap.registerPlugin(ScrollTrigger);
-        trigger = ScrollTrigger.create({
-          trigger: section,
-          start: "top top",
-          end: () => `+=${window.innerHeight * 3}`,
-          pin: true,
-          scrub: 0.5,
-          onUpdate: (self) => {
-            const index = Math.min(frameCount - 1, Math.floor(self.progress * frameCount));
-            renderFrame(index);
-          },
-        });
-      }),
-    );
+    if (!prefersReducedMotion) {
+      // gsap/ScrollTrigger are dynamically imported so they ship in a separate
+      // chunk rather than bloating the page's main JS bundle and hydration cost.
+      import("gsap").then(({ default: gsap }) =>
+        import("gsap/ScrollTrigger").then(({ ScrollTrigger }) => {
+          if (cancelled) return;
+          gsap.registerPlugin(ScrollTrigger);
+          trigger = ScrollTrigger.create({
+            trigger: section,
+            start: "top top",
+            end: () => `+=${window.innerHeight * 3}`,
+            pin: true,
+            scrub: 0.5,
+            onUpdate: (self) => {
+              renderFrame(self.progress * (frameCount - 1));
+            },
+          });
+        }),
+      );
+    }
 
     return () => {
       cancelled = true;
@@ -143,18 +164,28 @@ export default function Hero() {
         }`}
       />
       <div className="absolute inset-0 flex flex-col justify-end px-5 md:px-10 pb-16 md:pb-24 bg-gradient-to-t from-neutral-900/55 via-transparent to-transparent">
-        <h1 className="text-[40px] md:text-[62px] leading-[1.04] tracking-tight text-neutral-100">
+        <h1
+          className={`text-[40px] md:text-[62px] leading-[1.04] tracking-tight text-neutral-100 transition-all duration-700 ease-out ${
+            revealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+          }`}
+        >
           Kape at
           <br />
           Kwentuhan
         </h1>
-        <p className="text-base leading-relaxed mt-4.5 max-w-[42ch] text-neutral-100/85">
+        <p
+          className={`text-base leading-relaxed mt-4.5 max-w-[42ch] text-neutral-100/85 transition-all duration-700 ease-out delay-100 ${
+            revealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+          }`}
+        >
           A small coffee shop in Bay, Laguna. Slow drinks, long
           conversations, open until the streets go quiet.
         </p>
         <Link
           href="/order"
-          className="btn btn-primary self-start mt-6"
+          className={`btn btn-primary self-start mt-6 transition-all duration-700 ease-out delay-200 ${
+            revealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+          }`}
         >
           Tara, Kape? →
         </Link>
