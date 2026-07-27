@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import PhotoPlaceholder from "./PhotoPlaceholder";
 
 const DESKTOP_FRAME_COUNT = 120;
 const MOBILE_FRAME_COUNT = 60;
 const MOBILE_BREAKPOINT = 768;
+const CHAPTER_COUNT = 3;
 
 function frameSrc(isMobile: boolean, index: number): string {
   const folder = isMobile ? "mobile" : "desktop";
@@ -39,11 +41,23 @@ function drawImageCover(
   ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
 }
 
+function chapterClass(active: boolean) {
+  return `absolute inset-0 flex flex-col justify-end px-5 md:px-10 pb-16 md:pb-24 transition-all duration-700 ease-out ${
+    active ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3 pointer-events-none"
+  }`;
+}
+
 export default function Hero() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [chapter, setChapter] = useState(0);
+  const [reducedMotion] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -53,17 +67,14 @@ export default function Hero() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const prefersReducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-
     const isMobile = window.innerWidth < MOBILE_BREAKPOINT;
     const frameCount = isMobile ? MOBILE_FRAME_COUNT : DESKTOP_FRAME_COUNT;
-    const targetFrame = prefersReducedMotion ? Math.round((frameCount - 1) * 0.5) : 0;
+    const targetFrame = reducedMotion ? Math.round((frameCount - 1) * 0.5) : 0;
     const images: HTMLImageElement[] = [];
     let currentExact = targetFrame;
     let cancelled = false;
     let trigger: import("gsap/ScrollTrigger").ScrollTrigger | undefined;
+    let currentChapter = 0;
 
     function renderFrame(exact: number) {
       if (!canvas) return;
@@ -117,7 +128,7 @@ export default function Hero() {
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
 
-    if (!prefersReducedMotion) {
+    if (!reducedMotion) {
       // gsap/ScrollTrigger are dynamically imported so they ship in a separate
       // chunk rather than bloating the page's main JS bundle and hydration cost.
       import("gsap").then(({ default: gsap }) =>
@@ -127,11 +138,19 @@ export default function Hero() {
           trigger = ScrollTrigger.create({
             trigger: section,
             start: "top top",
-            end: () => `+=${window.innerHeight * 3}`,
+            end: () => `+=${window.innerHeight * 4.5}`,
             pin: true,
             scrub: 0.5,
             onUpdate: (self) => {
               renderFrame(self.progress * (frameCount - 1));
+              const next = Math.min(
+                CHAPTER_COUNT - 1,
+                Math.floor(self.progress * CHAPTER_COUNT),
+              );
+              if (next !== currentChapter) {
+                currentChapter = next;
+                setChapter(next);
+              }
             },
           });
         }),
@@ -143,10 +162,10 @@ export default function Hero() {
       window.removeEventListener("resize", resizeCanvas);
       trigger?.kill();
     };
-  }, []);
+  }, [reducedMotion]);
 
-  return (
-    <section ref={sectionRef} className="relative w-full h-[100svh] overflow-hidden bg-neutral-900">
+  const background = (
+    <>
       <img
         src={frameSrc(true, 0)}
         alt=""
@@ -163,30 +182,97 @@ export default function Hero() {
           loaded ? "opacity-100" : "opacity-0"
         }`}
       />
-      <div className="absolute inset-0 flex flex-col justify-end px-5 md:px-10 pb-16 md:pb-24 bg-gradient-to-t from-neutral-900/55 via-transparent to-transparent">
-        <h1
-          className={`text-[40px] md:text-[62px] leading-[1.04] tracking-tight text-neutral-100 transition-all duration-700 ease-out ${
-            revealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
-          }`}
-        >
+      <div className="absolute inset-0 bg-gradient-to-t from-neutral-900/55 via-transparent to-transparent" />
+    </>
+  );
+
+  if (reducedMotion) {
+    return (
+      <section ref={sectionRef} className="relative w-full min-h-[100svh] overflow-hidden bg-neutral-900">
+        {background}
+        <div className="relative flex flex-col justify-end px-5 md:px-10 py-16 md:py-24 gap-10">
+          <div>
+            <h1 className="text-[40px] md:text-[62px] leading-[1.04] tracking-tight text-neutral-100">
+              Kape at
+              <br />
+              Kwentuhan
+            </h1>
+            <p className="text-base leading-relaxed mt-4.5 max-w-[42ch] text-neutral-100/85">
+              A small coffee shop in Bay, Laguna. Slow drinks, long
+              conversations, open until the streets go quiet.
+            </p>
+            <Link href="/order" className="btn btn-primary self-start mt-6">
+              Tara, Kape? →
+            </Link>
+          </div>
+          <div className="max-w-[46ch]">
+            <span className="block text-xs tracking-wide uppercase font-semibold text-accent-200 mb-3">
+              The shop
+            </span>
+            <h2 className="text-[26px] md:text-[34px] leading-tight text-neutral-100">
+              A late table, always free
+            </h2>
+            <p className="text-[15.5px] leading-relaxed mt-4 text-neutral-100/78">
+              Istoria opens when the afternoon slows down and closes when the
+              last story does. Warm wood, low lamps, mismatched chairs — the
+              kind of place where one cup turns into three and nobody looks
+              at the clock.
+            </p>
+          </div>
+          <div>
+            <p className="text-lg text-neutral-100/90 max-w-[36ch]">
+              Bring your barkada, your notebook, or nothing at all.
+            </p>
+            <Link href="/order" className="btn btn-primary self-start mt-5">
+              Tara, Kape? →
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section ref={sectionRef} className="relative w-full h-[100svh] overflow-hidden bg-neutral-900">
+      {background}
+
+      <div className={chapterClass(revealed && chapter === 0)}>
+        <h1 className="text-[40px] md:text-[62px] leading-[1.04] tracking-tight text-neutral-100">
           Kape at
           <br />
           Kwentuhan
         </h1>
-        <p
-          className={`text-base leading-relaxed mt-4.5 max-w-[42ch] text-neutral-100/85 transition-all duration-700 ease-out delay-100 ${
-            revealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
-          }`}
-        >
+        <p className="text-base leading-relaxed mt-4.5 max-w-[42ch] text-neutral-100/85">
           A small coffee shop in Bay, Laguna. Slow drinks, long
           conversations, open until the streets go quiet.
         </p>
-        <Link
-          href="/order"
-          className={`btn btn-primary self-start mt-6 transition-all duration-700 ease-out delay-200 ${
-            revealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
-          }`}
-        >
+        <Link href="/order" className="btn btn-primary self-start mt-6">
+          Tara, Kape? →
+        </Link>
+      </div>
+
+      <div className={chapterClass(chapter === 1)}>
+        <div className="max-w-[46ch]">
+          <span className="block text-xs tracking-wide uppercase font-semibold text-accent-200 mb-3">
+            The shop
+          </span>
+          <h2 className="text-[26px] md:text-[34px] leading-tight text-neutral-100">
+            A late table, always free
+          </h2>
+          <p className="text-[15.5px] leading-relaxed mt-4 text-neutral-100/85 max-w-[44ch]">
+            Istoria opens when the afternoon slows down and closes when the
+            last story does. Warm wood, low lamps, mismatched chairs — the
+            kind of place where one cup turns into three and nobody looks at
+            the clock.
+          </p>
+        </div>
+      </div>
+
+      <div className={chapterClass(chapter === 2)}>
+        <p className="text-2xl md:text-3xl text-neutral-100 leading-snug max-w-[20ch]">
+          Bring your barkada, your notebook, or nothing at all.
+        </p>
+        <Link href="/order" className="btn btn-primary self-start mt-6">
           Tara, Kape? →
         </Link>
       </div>
