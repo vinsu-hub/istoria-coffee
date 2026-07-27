@@ -2,6 +2,10 @@ import path from "path";
 import fs from "fs/promises";
 import { fileURLToPath } from "url";
 import { Redis } from "@upstash/redis";
+// Statically imported (bundled directly into the JS output) so seed data is
+// always available even when the serverless bundler doesn't preserve the
+// runtime file path server/notes.ts would otherwise compute from __dirname.
+import seedNotes from "./data/notes.json";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -103,7 +107,11 @@ async function readNotesFile(): Promise<Note[]> {
     const raw = await fs.readFile(NOTES_FILE, "utf-8");
     return JSON.parse(raw);
   } catch {
-    return [];
+    // Serverless bundlers don't always preserve the on-disk path this file
+    // expects (e.g. Vercel functions) — fall back to the copy that got
+    // bundled directly into the JS at build time, so GET /api/notes always
+    // has at least the seed content instead of silently returning empty.
+    return seedNotes as Note[];
   }
 }
 
