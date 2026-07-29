@@ -1,3 +1,14 @@
+// Vite only exposes VITE_-prefixed vars to client code via import.meta.env —
+// it doesn't load .env.local into process.env for the server-side code that
+// runs inside this config's dev-middleware plugins (server/adminAuth.ts,
+// server/menu.ts, server/submissions.ts all read process.env.SUPABASE_URL
+// etc. directly). Node 20.12+ can load a dotenv-style file natively.
+try {
+  process.loadEnvFile(".env.local");
+} catch {
+  // No .env.local locally (e.g. CI) — fine, those env vars just won't be set.
+}
+
 import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -5,7 +16,21 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
-import { listRecentNotes, createNote } from "./server/notes";
+import { listRecentNotes, createNote, deleteNote } from "./server/notes";
+import { requireAdmin } from "./server/adminAuth";
+import {
+  listMenu,
+  listCategories,
+  createMenuItem,
+  updateMenuItem,
+  deleteMenuItem,
+} from "./server/menu";
+import {
+  listApprovedSubmissions,
+  createSubmission,
+  listPendingSubmissions,
+  moderateSubmission,
+} from "./server/submissions";
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin
@@ -192,6 +217,244 @@ function vitePluginFreedomWallApi(): Plugin {
   };
 }
 
+function readJsonBody(req: import("node:http").IncomingMessage): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk: Buffer) => (body += chunk));
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(body || "{}"));
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+function vitePluginMenuApi(): Plugin {
+  return {
+    name: "menu-api",
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use("/api/menu", async (req, res) => {
+        if (req.method !== "GET") {
+          res.writeHead(405);
+          res.end();
+          return;
+        }
+        res.setHeader("Content-Type", "application/json");
+        try {
+          res.end(JSON.stringify(await listMenu()));
+        } catch (error) {
+          res.writeHead(503);
+          res.end(JSON.stringify({ error: String(error instanceof Error ? error.message : error) }));
+        }
+      });
+    },
+  };
+}
+
+function vitePluginAdminMenuApi(): Plugin {
+  return {
+    name: "admin-menu-api",
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use("/api/admin-menu", async (req, res) => {
+        const admin = await requireAdmin(req.headers.authorization as string | undefined);
+        if (!admin) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "unauthorized" }));
+          return;
+        }
+
+        res.setHeader("Content-Type", "application/json");
+        const url = new URL(req.url ?? "", "http://localhost");
+        const id = url.searchParams.get("id") ?? undefined;
+
+        try {
+          if (req.method === "GET") {
+            res.end(JSON.stringify({ categories: await listCategories() }));
+            return;
+          }
+
+          if (req.method === "POST") {
+            const body = await readJsonBody(req);
+            await createMenuItem(body);
+            res.writeHead(201);
+            res.end(JSON.stringify({ ok: true }));
+            return;
+          }
+
+          if (req.method === "PUT") {
+            const body = await readJsonBody(req);
+            const itemId = id ?? body.id;
+            if (!itemId) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: "missing_id" }));
+              return;
+            }
+            await updateMenuItem(itemId, body);
+            res.end(JSON.stringify({ ok: true }));
+            return;
+          }
+
+          if (req.method === "DELETE") {
+            if (!id) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: "missing_id" }));
+              return;
+            }
+            await deleteMenuItem(id);
+            res.end(JSON.stringify({ ok: true }));
+            return;
+          }
+
+          res.writeHead(405);
+          res.end();
+        } catch (error) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: String(error instanceof Error ? error.message : error) }));
+        }
+      });
+    },
+  };
+}
+
+function vitePluginSubmissionsApi(): Plugin {
+  return {
+    name: "submissions-api",
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use("/api/submissions", async (req, res) => {
+        res.setHeader("Content-Type", "application/json");
+
+        try {
+          if (req.method === "GET") {
+            res.end(JSON.stringify({ submissions: await listApprovedSubmissions() }));
+            return;
+          }
+
+          if (req.method === "POST") {
+            const body = await readJsonBody(req);
+            const result = await createSubmission(body);
+            if (!result.ok) {
+              res.writeHead(result.status);
+              res.end(JSON.stringify({ error: result.error }));
+              return;
+            }
+            res.writeHead(201);
+            res.end(JSON.stringify({ submission: result.submission }));
+            return;
+          }
+
+          res.writeHead(405);
+          res.end();
+        } catch (error) {
+          res.writeHead(503);
+          res.end(JSON.stringify({ error: String(error instanceof Error ? error.message : error) }));
+        }
+      });
+    },
+  };
+}
+
+function vitePluginAdminSubmissionsApi(): Plugin {
+  return {
+    name: "admin-submissions-api",
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use("/api/admin-submissions", async (req, res) => {
+        const admin = await requireAdmin(req.headers.authorization as string | undefined);
+        if (!admin) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "unauthorized" }));
+          return;
+        }
+
+        res.setHeader("Content-Type", "application/json");
+
+        try {
+          if (req.method === "GET") {
+            res.end(JSON.stringify({ submissions: await listPendingSubmissions() }));
+            return;
+          }
+
+          if (req.method === "POST") {
+            const body = await readJsonBody(req);
+            const { id, decision } = body ?? {};
+            if (!id || (decision !== "approved" && decision !== "rejected")) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: "invalid_request" }));
+              return;
+            }
+            const result = await moderateSubmission(id, decision);
+            if (!result.ok) {
+              res.writeHead(result.status ?? 400);
+              res.end(JSON.stringify({ error: result.error }));
+              return;
+            }
+            res.writeHead(200);
+            res.end(JSON.stringify({ ok: true }));
+            return;
+          }
+
+          res.writeHead(405);
+          res.end();
+        } catch (error) {
+          res.writeHead(503);
+          res.end(JSON.stringify({ error: String(error instanceof Error ? error.message : error) }));
+        }
+      });
+    },
+  };
+}
+
+function vitePluginAdminNotesApi(): Plugin {
+  return {
+    name: "admin-notes-api",
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use("/api/admin-notes", async (req, res) => {
+        const admin = await requireAdmin(req.headers.authorization as string | undefined);
+        if (!admin) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "unauthorized" }));
+          return;
+        }
+
+        try {
+          if (req.method === "GET") {
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ notes: await listRecentNotes() }));
+            return;
+          }
+
+          if (req.method === "DELETE") {
+            const url = new URL(req.url ?? "", "http://localhost");
+            const id = url.searchParams.get("id");
+            if (!id) {
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: "missing_id" }));
+              return;
+            }
+            const result = await deleteNote(id);
+            res.setHeader("Content-Type", "application/json");
+            if (!result.ok) {
+              res.writeHead(result.status);
+              res.end(JSON.stringify({ error: result.error }));
+              return;
+            }
+            res.writeHead(200);
+            res.end(JSON.stringify({ ok: true }));
+            return;
+          }
+
+          res.writeHead(405);
+          res.end();
+        } catch (error) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: String(error instanceof Error ? error.message : error) }));
+        }
+      });
+    },
+  };
+}
+
 function vitePluginStorageProxy(): Plugin {
   return {
     name: "manus-storage-proxy",
@@ -245,7 +508,20 @@ function vitePluginStorageProxy(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy(), vitePluginFreedomWallApi()];
+const plugins = [
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  vitePluginManusRuntime(),
+  vitePluginManusDebugCollector(),
+  vitePluginStorageProxy(),
+  vitePluginFreedomWallApi(),
+  vitePluginAdminNotesApi(),
+  vitePluginMenuApi(),
+  vitePluginAdminMenuApi(),
+  vitePluginSubmissionsApi(),
+  vitePluginAdminSubmissionsApi(),
+];
 
 export default defineConfig({
   plugins,

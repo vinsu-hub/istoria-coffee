@@ -10,6 +10,9 @@ import MenuPage from "./pages/Menu";
 import BoardPage from "./pages/Board";
 import OrderPage from "./pages/Order";
 import ContactPage from "./pages/Contact";
+import CommunityPage from "./pages/Community";
+import LoginPage from "./pages/Login";
+import AdminLayout from "./pages/admin/AdminLayout";
 
 function Router() {
   return (
@@ -19,6 +22,10 @@ function Router() {
       <Route path="/board" component={BoardPage} />
       <Route path="/order" component={OrderPage} />
       <Route path="/contact" component={ContactPage} />
+      <Route path="/community" component={CommunityPage} />
+      {/* Intentionally not linked from Nav.tsx — see plan's admin-panel notes */}
+      <Route path="/login" component={LoginPage} />
+      <Route path="/admin" component={AdminLayout} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

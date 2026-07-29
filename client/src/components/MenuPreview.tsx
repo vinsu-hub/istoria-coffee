@@ -1,12 +1,15 @@
 import { Link } from "wouter";
-import menuData from "@/data/menu.json";
+import { useMenu } from "@/hooks/useMenu";
 
 /**
  * MenuPreview — homepage section showing 4 featured items from specials.
  * Links to /menu for the full menu.
  */
 export default function MenuPreview() {
-  const featured = menuData.drinks.specials.slice(0, 4);
+  const { data: menuData } = useMenu();
+  const featured = menuData?.drinks.specials?.slice(0, 4) ?? [];
+
+  if (featured.length === 0) return null;
 
   return (
     <section className="py-16 lg:py-24 bg-parchment">

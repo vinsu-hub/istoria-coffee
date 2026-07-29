@@ -59,6 +59,8 @@ export type CreateNoteResult =
   | { ok: true; note: PublicNote }
   | { ok: false; status: number; error: string };
 
+export type DeleteNoteResult = { ok: true } | { ok: false; status: number; error: string };
+
 function validateInput(message: unknown, deviceId: unknown): { message: string; deviceId: string } | { error: "invalid_request" | "invalid_length" | "blocked_content" } {
   if (typeof message !== "string" || typeof deviceId !== "string" || !deviceId) {
     return { error: "invalid_request" };
@@ -85,6 +87,23 @@ function getSupabase(): SupabaseClient | null {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   return createClient(url, key);
+}
+
+async function deleteNoteSupabase(
+  supabase: SupabaseClient,
+  id: string
+): Promise<DeleteNoteResult> {
+  const { data, error } = await supabase
+    .from(NOTES_TABLE)
+    .delete()
+    .eq("id", id)
+    .select("id");
+
+  if (error) throw error;
+  if (!data || data.length === 0) {
+    return { ok: false, status: 404, error: "not_found" };
+  }
+  return { ok: true };
 }
 
 async function listRecentNotesSupabase(supabase: SupabaseClient): Promise<PublicNote[]> {
@@ -162,6 +181,16 @@ function getRedis(): Redis | null {
   return new Redis({ url, token });
 }
 
+async function deleteNoteRedis(redis: Redis, id: string): Promise<DeleteNoteResult> {
+  const raw = await redis.zrange<string[]>("wall:notes", 0, -1);
+  const match = raw.find((entry) => (JSON.parse(entry) as Note).id === id);
+  if (!match) {
+    return { ok: false, status: 404, error: "not_found" };
+  }
+  await redis.zrem("wall:notes", match);
+  return { ok: true };
+}
+
 async function listRecentNotesRedis(redis: Redis): Promise<PublicNote[]> {
   const raw = await redis.zrange<string[]>("wall:notes", 0, MAX_NOTES_RETURNED - 1, { rev: true });
   return raw.map((entry) => toPublicNote(JSON.parse(entry) as Note));
@@ -205,6 +234,22 @@ async function writeNotesFile(notes: Note[]): Promise<void> {
 
 function isSameDay(isoA: string, isoB: string): boolean {
   return isoA.slice(0, 10) === isoB.slice(0, 10);
+}
+
+async function deleteNoteFile(id: string): Promise<DeleteNoteResult> {
+  const notes = await readNotesFile();
+  const remaining = notes.filter((note) => note.id !== id);
+  if (remaining.length === notes.length) {
+    return { ok: false, status: 404, error: "not_found" };
+  }
+
+  try {
+    await writeNotesFile(remaining);
+  } catch {
+    return { ok: false, status: 503, error: "storage_unavailable" };
+  }
+
+  return { ok: true };
 }
 
 async function listRecentNotesFile(): Promise<PublicNote[]> {
@@ -265,4 +310,15 @@ export async function createNote(rawMessage: unknown, rawDeviceId: unknown): Pro
   return redis
     ? createNoteRedis(redis, validated.message, validated.deviceId)
     : createNoteFile(validated.message, validated.deviceId);
+}
+
+// Admin-only — deletes a note from whichever storage tier is active. Kept
+// working on the JSON-file tier too (not just Supabase) so local admin
+// testing without Supabase configured still exercises this end-to-end.
+export async function deleteNote(id: string): Promise<DeleteNoteResult> {
+  const supabase = getSupabase();
+  if (supabase) return deleteNoteSupabase(supabase, id);
+
+  const redis = getRedis();
+  return redis ? deleteNoteRedis(redis, id) : deleteNoteFile(id);
 }

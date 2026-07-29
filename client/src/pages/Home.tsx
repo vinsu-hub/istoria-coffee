@@ -5,13 +5,14 @@ import AboutSection from "@/components/AboutSection";
 import MenuPreview from "@/components/MenuPreview";
 import SocialGrid from "@/components/SocialGrid";
 import BoardPreview from "@/components/BoardPreview";
+import CommunityPreview from "@/components/CommunityPreview";
 import LocationMap from "@/components/LocationMap";
 import Footer from "@/components/Footer";
 import Reveal from "@/components/Reveal";
 
 /**
  * / — Landing page assembly.
- * Order: Nav → Hero → StatusBadge → About → MenuPreview → SocialGrid → BoardPreview → Map → Footer
+ * Order: Nav → Hero → StatusBadge → About → MenuPreview → SocialGrid → BoardPreview → CommunityPreview → Map → Footer
  */
 export default function Home() {
   return (
@@ -34,6 +35,9 @@ export default function Home() {
         </Reveal>
         <Reveal>
           <BoardPreview />
+        </Reveal>
+        <Reveal>
+          <CommunityPreview />
         </Reveal>
         <Reveal>
           <LocationMap />

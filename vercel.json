@@ -5,6 +5,9 @@
   "functions": {
     "api/notes.ts": {
       "includeFiles": "server/data/notes.json"
+    },
+    "api/admin-notes.ts": {
+      "includeFiles": "server/data/notes.json"
     }
   },
   "rewrites": [

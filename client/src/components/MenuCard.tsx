@@ -10,6 +10,7 @@ interface MenuCardProps {
     price?: number;
     hot?: number;
     iced?: number;
+    note?: string;
     servesNote?: string;
   };
   tag?: string;
@@ -46,9 +47,9 @@ export default function MenuCard({ item, tag, featured }: MenuCardProps) {
           </span>
         )}
       </div>
-      {item.servesNote && (
+      {(item.note || item.servesNote) && (
         <p className="text-right font-body text-xs text-charcoal-light/70 mt-0.5">
-          {item.servesNote}
+          {item.note ?? item.servesNote}
         </p>
       )}
     </div>

@@ -115,3 +115,9 @@ client/public/__manus__/version.json
 
 .vercel
 .env*
+
+# graphify knowledge graph (regenerate with `graphify update .`)
+graphify-out/
+
+# Supabase CLI local link metadata (machine-specific, not project config)
+supabase/.temp/

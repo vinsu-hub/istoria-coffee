@@ -1,56 +1,70 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import MenuGrid from "@/components/MenuGrid";
-import menuData from "@/data/menu.json";
+import { useMenu } from "@/hooks/useMenu";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * /menu — Full categorized menu page.
  * Editorial zine feel: chapter-like sections, paper texture, dotted leaders.
  * Two-tier nav: Drinks/Food switch, then category tabs within the selected section.
+ * Menu data is fetched at runtime from /api/menu (Supabase-backed, admin-editable)
+ * rather than a static build-time import, so category lists come from the data
+ * itself instead of a hardcoded array kept in sync by hand.
  */
 
 type Section = "drinks" | "food";
 
-interface MenuItem {
-  id: string;
-  name: string;
-  price?: number;
-  hot?: number;
-  iced?: number;
-  servesNote?: string;
-}
-
-const drinksCategories = [
-  { key: "basics", label: "Basics", blurb: "Classic brews, honest prices." },
-  { key: "specials", label: "Specials", blurb: "Our signature creations — worth every peso." },
-  { key: "latte", label: "Latte", blurb: "Espresso meets your favorite flavor." },
-  { key: "nonCoffee", label: "Non-Coffee", blurb: "For when coffee is not the mood." },
-  { key: "oatBased", label: "Oat-Based", blurb: "Creamy, dairy-free, and full of flavor." },
-  { key: "matchaBlends", label: "Matcha Blends", blurb: "Earthy matcha, reimagined." },
-] as const;
-
-const foodCategories = [
-  { key: "waffles", label: "Waffles", blurb: "Savory-sweet, straight off the iron." },
-  { key: "mains", label: "Mains", blurb: "Hearty plates to share or savor solo." },
-  { key: "patata", label: "Patata", blurb: "Crispy potatoes, done a few ways." },
-  { key: "pasta", label: "Pasta", blurb: "Comfort in a bowl." },
-  { key: "riceBowls", label: "Rice Bowls", blurb: "A full meal, one bowl." },
-  { key: "partyTrays", label: "Party Trays", blurb: "For the whole barkada." },
-] as const;
-
 export default function MenuPage() {
+  const { data: menuData, loading, error } = useMenu();
   const [activeSection, setActiveSection] = useState<Section>("drinks");
-  const categories = activeSection === "drinks" ? drinksCategories : foodCategories;
-  const [activeCategory, setActiveCategory] = useState<string>(categories[0].key);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const tabRef = useRef<HTMLDivElement>(null);
+
+  const categories = menuData ? menuData.categories[activeSection] : [];
+
+  useEffect(() => {
+    if (categories.length > 0 && activeCategory === null) {
+      setActiveCategory(categories[0].key);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuData]);
 
   const handleSectionChange = (section: Section) => {
     setActiveSection(section);
-    const nextCategories = section === "drinks" ? drinksCategories : foodCategories;
-    setActiveCategory(nextCategories[0].key);
+    const nextCategories = menuData?.categories[section] ?? [];
+    setActiveCategory(nextCategories[0]?.key ?? null);
   };
+
+  if (loading || !menuData) {
+    return (
+      <div className="min-h-screen flex flex-col bg-cream">
+        <Nav />
+        <main className="flex-1 pt-20 lg:pt-24 container py-14 space-y-4">
+          <Skeleton className="h-10 w-1/2 mx-auto" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full" />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col bg-cream">
+        <Nav />
+        <main className="flex-1 pt-20 lg:pt-24 container py-14 text-center">
+          <p className="font-body text-charcoal-light">
+            Couldn't load the menu right now — please refresh or try again shortly.
+          </p>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-cream">
@@ -135,7 +149,7 @@ export default function MenuPage() {
 
                 {/* Items with dotted leaders */}
                 <div className="bg-warm-white border border-border rounded-sm p-6 lg:p-8">
-                  <MenuGrid items={(menuData[activeSection] as Record<string, MenuItem[]>)[cat.key]} />
+                  <MenuGrid items={menuData[activeSection][cat.key] ?? []} />
                 </div>
               </div>
             ))}
