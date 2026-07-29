@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
@@ -11,8 +12,13 @@ import BoardPage from "./pages/Board";
 import OrderPage from "./pages/Order";
 import ContactPage from "./pages/Contact";
 import CommunityPage from "./pages/Community";
-import LoginPage from "./pages/Login";
-import AdminLayout from "./pages/admin/AdminLayout";
+
+// Lazy-loaded: these are the only pages that touch client/src/lib/supabase.ts.
+// Code-splitting them means a bad/missing Supabase env var (or any bug in the
+// admin surface) can only break /login and /admin, never the whole site —
+// this is what actually happened once already (see SESSION_HANDOFF context).
+const LoginPage = lazy(() => import("./pages/Login"));
+const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 
 function Router() {
   return (
@@ -24,8 +30,16 @@ function Router() {
       <Route path="/contact" component={ContactPage} />
       <Route path="/community" component={CommunityPage} />
       {/* Intentionally not linked from Nav.tsx — see plan's admin-panel notes */}
-      <Route path="/login" component={LoginPage} />
-      <Route path="/admin" component={AdminLayout} />
+      <Route path="/login">
+        <Suspense fallback={null}>
+          <LoginPage />
+        </Suspense>
+      </Route>
+      <Route path="/admin">
+        <Suspense fallback={null}>
+          <AdminLayout />
+        </Suspense>
+      </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

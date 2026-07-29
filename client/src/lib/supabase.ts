@@ -4,7 +4,14 @@ import { createClient } from "@supabase/supabase-js";
 // govern exactly what this client can read/write directly. Admin writes and
 // anything requiring the service-role key happen server-side only, via the
 // shared server/*.ts modules, never here.
-export const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+//
+// createClient() throws synchronously if the URL is missing/malformed — a
+// bad or absent env var must never crash module init (this module is only
+// ever imported by the lazy-loaded /login and /admin pages, but it shouldn't
+// be fragile even so). Falls back to an obviously-fake URL so construction
+// always succeeds; actual auth calls will just fail with a clear network
+// error instead of taking down the page that imports this module.
+const url = import.meta.env.VITE_SUPABASE_URL || "https://supabase-not-configured.invalid";
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "missing-anon-key";
+
+export const supabase = createClient(url, anonKey);
